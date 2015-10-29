@@ -70,7 +70,8 @@ class BalancedConsumer():
                  zookeeper_connect='127.0.0.1:2181',
                  zookeeper=None,
                  auto_start=True,
-                 reset_offset_on_start=False):
+                 reset_offset_on_start=False,
+                 rebalance_callback=None):
         """Create a BalancedConsumer instance
 
         :param topic: The topic this consumer should consume
@@ -144,6 +145,10 @@ class BalancedConsumer():
             internal offset counter to `self._auto_offset_reset` and commit that
             offset immediately upon starting up
         :type reset_offset_on_start: bool
+        :param rebalance_callback: Function accepting one argument to be called
+            after a rebalance has completed. The argument is a reference to the
+            consumer that just completed its rebalance.
+        :type rebalance_callback: function
         """
         self._cluster = cluster
         self._consumer_group = consumer_group
@@ -165,6 +170,7 @@ class BalancedConsumer():
         self._zookeeper_connect = zookeeper_connect
         self._zookeeper_connection_timeout_ms = zookeeper_connection_timeout_ms
         self._reset_offset_on_start = reset_offset_on_start
+        self._rebalance_callback = rebalance_callback
         self._running = False
 
         self._rebalancing_lock = cluster.handler.Lock()
@@ -509,6 +515,8 @@ class BalancedConsumer():
                     time.sleep(i * (self._rebalance_backoff_ms / 1000))
         if should_stop:
             self.stop()
+        if self._rebalance_callback is not None:
+            self._rebalance_callback(self)
 
     def _path_from_partition(self, p):
         """Given a partition, return its path in zookeeper.
